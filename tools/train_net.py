@@ -30,16 +30,16 @@ def parse_args():
                         default=0, type=int)
     parser.add_argument('--solver', dest='solver',
                         help='solver prototxt',
-                        default=None, type=str)
+                        default='/home/mvn/Desktop/Deeplearning/object_detection/py-faster-rcnn/models/pascal_voc/Vehicle/faster_rcnn_end2end/solver.prototxt', type=str)
     parser.add_argument('--iters', dest='max_iters',
                         help='number of iterations to train',
-                        default=40000, type=int)
+                        default=400000, type=int)
     parser.add_argument('--weights', dest='pretrained_model',
                         help='initialize with pretrained model weights',
                         default=None, type=str)
     parser.add_argument('--cfg', dest='cfg_file',
                         help='optional config file',
-                        default=None, type=str)
+                        default='/home/mvn/Desktop/Deeplearning/object_detection/py-faster-rcnn/experiments/cfgs/faster_rcnn_end2end.yml', type=str)
     parser.add_argument('--imdb', dest='imdb_name',
                         help='dataset to train on',
                         default='voc_2007_trainval', type=str)
@@ -52,7 +52,7 @@ def parse_args():
 
     if len(sys.argv) == 1:
         parser.print_help()
-        sys.exit(1)
+        # sys.exit(1)
 
     args = parser.parse_args()
     return args

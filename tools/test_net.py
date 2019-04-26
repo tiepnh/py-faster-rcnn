@@ -45,7 +45,7 @@ def parse_args():
                         help='set config keys', default=None,
                         nargs=argparse.REMAINDER)
     parser.add_argument('--vis', dest='vis', help='visualize detections',
-                        action='store_true')
+                        action='store_true', default=True)
     parser.add_argument('--num_dets', dest='max_per_image',
                         help='max number of detections per image',
                         default=100, type=int)
