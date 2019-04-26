@@ -1,23 +1,12 @@
+# -*- coding: utf-8 -*-
 import _init_paths
 from fast_rcnn.config import cfg
 from fast_rcnn.test import im_detect
 from fast_rcnn.nms_wrapper import nms
 from utils.timer import Timer
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy.io as sio
-import caffe, os, sys, cv2
-import argparse
+import caffe, os, cv2
 from PIL import ImageFont, ImageDraw, Image
-
-CLASSES = ('__background__',  # always index 0
-           'motorbike', 'car', 'bus', 'truck', 'van')
-COLOR = {'__background__': (0, 0, 0),
-         'motorbike': (0, 255, 0),
-         'car': (0, 0, 255),
-         'bus': (255, 0, 0),
-         'truck': (255, 255, 0),
-         'van': (0, 255, 255)}
 
 this_dir = os.path.dirname(__file__)
 
@@ -25,6 +14,17 @@ this_dir = os.path.dirname(__file__)
 class VehicleDetection():
     def __init__(self, prototxt, caffemodel, gpu_id=0, conf_thresh=0.8, nms_thresh=0.3, fontpath="arial.ttf"):
         cfg.TEST.HAS_RPN = True  # Use RPN for proposals
+
+        # config class, color
+        self.CLASSES = ('__background__',  # always index 0
+                        'motorbike', 'car', 'bus', 'truck', 'van')
+
+        self.COLOR = {'__background__': (0, 0, 0),
+                      'motorbike': (0, 255, 0),
+                      'car': (0, 0, 255),
+                      'bus': (255, 0, 0),
+                      'truck': (255, 255, 0),
+                      'van': (0, 255, 255)}
 
         self.conf_thresh = conf_thresh
         self.nms_thresh = nms_thresh
@@ -43,7 +43,7 @@ class VehicleDetection():
 
         self.font = ImageFont.truetype(fontpath, 14)
 
-    def draw_result(self, im, det_res, detection_time=0):
+    def draw_result(self, im, det_res, detection_time=0, count_result=None):
         # convert to pil image
         img_pil = Image.fromarray(im)
         draw = ImageDraw.Draw(img_pil)
@@ -51,14 +51,35 @@ class VehicleDetection():
         for res in det_res:
             class_name = res['class_name']
             bbox = res['bbox']
-            draw.rectangle([(bbox[0], bbox[1]), (bbox[2], bbox[3])], outline=COLOR[class_name])
-            # score = res['score']
-            # "{}: {:.2f}".format(class_name, score)
+            draw.rectangle([(bbox[0], bbox[1]), (bbox[2], bbox[3])], outline=self.COLOR[class_name])
+
         # draw information board
-        # draw.rectangle([(10, 10), (160, 70)], fill=(100, 100, 100, 10))
+        left = 15
+        row_height = 18
+        draw.rectangle([(10, 10), (100, 10 + row_height * (2 + len(count_result)))], fill=(100, 100, 100, 10))
+
+        # draw frame rate
         if detection_time > 0:
-            draw.text((15, 15), "FPS: {:.1f}".format(1000/detection_time), font=self.font,
+            draw.text((left, row_height), "FPS: {:.1f}".format(1000/detection_time), font=self.font,
                       fill=(255, 255, 255, 255))
+
+        # draw copy right
+        msg = unicode("Copyright©2018-2019 Công Ty VVN Phát Triên. All rights reserved", 'utf-8')
+        w, h = draw.textsize(msg)
+        draw.text(((im.shape[1] - w) // 2, (im.shape[0] * 8//10)), msg, font=self.font, fill='white')
+
+        # draw counting results
+        if count_result is not None:
+            i = 2
+            count_result = sorted(count_result.items(), key=lambda k: k[0])
+            for cls, result in count_result:
+                display_cls = ' ' * (5-len(cls)) + cls
+                if cls == 'motorbike':
+                    display_cls = ' bike'
+                draw.text((left, i * row_height), "{}: {}".format(display_cls, result), font=self.font,
+                          fill=self.COLOR[cls])
+                i += 1
+
         del draw
         im = np.array(img_pil)
         return im
@@ -75,7 +96,7 @@ class VehicleDetection():
 
         # Visualize detections for each class
         det_res = []
-        for cls_ind, cls in enumerate(CLASSES[1:]):
+        for cls_ind, cls in enumerate(self.CLASSES[1:]):
             cls_ind += 1  # because we skipped background
             cls_boxes = boxes[:, 4 * cls_ind:4 * (cls_ind + 1)]
             cls_scores = scores[:, cls_ind]
@@ -90,7 +111,7 @@ class VehicleDetection():
                 bbox = dets[i, :4]
                 bbox = [int(c) for c in bbox]
                 score = dets[i, -1]
-                det_res.append({"class_name": cls, "score": score, "bbox": bbox, "color": COLOR[cls]})
+                det_res.append({"class_name": cls, "score": score, "bbox": bbox, "color": self.COLOR[cls]})
 
         return det_res, elapsed_time
 
@@ -111,7 +132,6 @@ def demo(vehicle_detection, data_file_path, save_data_path, scale=1.0):
         img = cv2.imread(data_file_path)
         if img is None:
             import exiftool
-            video_rotation = 0
             with exiftool.ExifTool() as et:
                 metadata = et.get_metadata(data_file_path)
                 print (metadata)
@@ -167,19 +187,19 @@ def demo(vehicle_detection, data_file_path, save_data_path, scale=1.0):
 
 if __name__ == '__main__':
     cfg.TEST.HAS_RPN = True  # Use RPN for proposals
-    prototxt = os.path.join(this_dir, '..', "models/pascal_voc/Vehicle/faster_rcnn_end2end/test.prototxt")
+    prototxt_ = os.path.join(this_dir, '..', "models/pascal_voc/Vehicle/faster_rcnn_end2end/test.prototxt")
 
-    caffemodel = os.path.join(this_dir, '..',
+    caffemodel_ = os.path.join(this_dir, '..',
                                        "output/faster_rcnn_end2end/voc_2007_trainval/vehicle_faster_rcnn_iter_70000.caffemodel")
 
     input_data_path_ = '/media/mvn/Data/Dataset/Image/ITS/VehicleDataset/darknet/Test/RCNN_4000177_Special_0721_TDH_b_1s.avi_1401.jpg'
     input_data_path_ = '/media/mvn/Data/Dataset/Image/ITS/Video'
     save_data_path_ = ''
 
-    if not os.path.isfile(caffemodel):
+    if not os.path.isfile(caffemodel_):
         raise IOError(('{:s} not found.\nDid you run ./data/script/'
-                       'fetch_faster_rcnn_models.sh?').format(caffemodel))
+                       'fetch_faster_rcnn_models.sh?').format(caffemodel_))
 
-    vehicle_detection_ = VehicleDetection(prototxt, caffemodel, gpu_id=0,
+    vehicle_detection_ = VehicleDetection(prototxt_, caffemodel_, gpu_id=0,
                                           fontpath='/home/mvn/Desktop/Deeplearning/object_detection/py-faster-rcnn/arial.ttf')
     demo(vehicle_detection_, input_data_path_, save_data_path_, scale=0.5)

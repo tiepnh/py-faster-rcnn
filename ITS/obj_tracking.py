@@ -2,6 +2,9 @@ import cv2
 import math
 import numpy as np
 from collections import OrderedDict
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+
 
 class ObjectTracker():
     def __init__(self, id, detect_obj, max_lost):
@@ -17,6 +20,7 @@ class ObjectTracker():
         self.color = color
         self.class_name = cls
         self.update_loc(bbox)
+        self.is_counted = 0
         print('Create ObjectTracker')
 
     def update_loc(self, bbox):
@@ -31,9 +35,11 @@ class ObjectTracker():
         bbox = self.bboxes[-1]
         if self.lost_time == 0:
             cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), self.color)
-        else:
-            cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 0))
-        cv2.putText(img, "{}".format(self.tracker_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, self.color)
+            cv2.putText(img, "{}".format(self.tracker_id), (bbox[0], bbox[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        self.color)
+        # else:
+        #     cv2.rectangle(img, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 0))
+
         return img
 
     def distance(self, img, detect_obj):
@@ -54,6 +60,17 @@ class ObjectTracker():
             if self.bboxes[-1][3] >= img.shape[0] * 0.9:
                 self.lost_time = self.max_lost + 10
         return self.lost_time >= self.max_lost
+
+    def do_count(self, counter_area):
+        if self.is_counted or self.lost_time > 0 or len(counter_area) == 0:
+            return self.class_name, 0
+        obj_point = Point((self.bboxes[-1][0] + self.bboxes[-1][2])//2, self.bboxes[-1][3])
+        polygon = Polygon(counter_area)
+        if polygon.contains(obj_point):
+            self.is_counted = True
+            return self.class_name, 1
+        else:
+            return self.class_name, 0
 
     @staticmethod
     def create_tracker_by_name(tracker_type):
@@ -171,5 +188,14 @@ class MultiObjectTracking():
         for tracker_id, tracker in self.list_tracker.items():
             img = tracker.draw_tracking(img)
         return img
+
+    def count_object(self, counter_area, count_result):
+        for tracker_id, tracker in self.list_tracker.items():
+            cls, should_count = tracker.do_count(counter_area)
+            if count_result.__contains__(cls):
+                count_result[cls] += should_count
+            else:
+                count_result[cls] = should_count
+        return count_result
 
 
